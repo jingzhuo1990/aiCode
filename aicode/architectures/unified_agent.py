@@ -5,10 +5,11 @@ from ..models.base import AIModel
 from ..memory.memory_manager import MemoryManager
 from .react_agent import ReActAgent
 from .plan_execute_agent import PlanExecuteAgent
-from .tools_enhanced import ToolRegistry, create_enhanced_tools
+from .tools_enhanced import ToolRegistry, Tool, create_enhanced_tools
 from ..agent.file_handler import FileHandler
 from ..agent.code_generator import CodeGenerator
 from ..agent.code_modifier import CodeModifier
+from ..skills import create_default_skills, SkillExecutionContext
 
 
 class UnifiedAgent:
@@ -39,6 +40,12 @@ class UnifiedAgent:
 
         # 创建工具注册表
         self.tool_registry = create_enhanced_tools()
+
+        # 创建技能注册表
+        self.skill_registry = create_default_skills()
+
+        # 将 Skills 注册为 Tools
+        self._register_skills_as_tools()
 
         # 初始化两种 Agent
         self.react_agent = ReActAgent(
@@ -195,3 +202,60 @@ Respond with ONLY one word: "react" or "plan"
         if tool:
             return tool.to_dict()
         return None
+
+    # === Skills 集成 ===
+
+    def _register_skills_as_tools(self):
+        """将所有 Skills 包装成 Tools 并注册"""
+        for skill in self.skill_registry.list_skills():
+            tool = self._wrap_skill_as_tool(skill)
+            self.tool_registry.register(tool)
+
+            if self.verbose:
+                print(f"  ✓ Registered skill as tool: {tool.name}")
+
+    def _wrap_skill_as_tool(self, skill) -> Tool:
+        """将单个 Skill 包装为 Tool"""
+
+        # 创建闭包保存 skill 引用
+        def create_wrapper(skill_instance):
+            async def skill_wrapper(**kwargs):
+                # 创建 Skill 执行上下文
+                context = SkillExecutionContext(
+                    tools={
+                        name: tool.func
+                        for name, tool in self.tool_registry.tools.items()
+                        if not name.startswith('skill_')  # 避免循环依赖
+                    },
+                    working_dir=".",
+                    memory=self.memory,
+                    metadata={"invoked_by": "agent"}
+                )
+
+                # 执行 Skill
+                result = await skill_instance.execute(context, **kwargs)
+
+                # 格式化返回结果
+                if result["success"]:
+                    output = f"✓ {result['message']}\n\n"
+                    if result.get("steps"):
+                        output += "Execution Steps:\n"
+                        for step in result["steps"]:
+                            output += f"  • {step}\n"
+                    if result.get("data"):
+                        output += f"\nResult Data: {result['data']}\n"
+                    return output
+                else:
+                    return f"✗ Skill failed: {result['message']}"
+
+            return skill_wrapper
+
+        # 创建 Tool 对象
+        return Tool(
+            name=f"skill_{skill.name}",
+            description=f"[HIGH-LEVEL SKILL] {skill.description}\n"
+                       f"Category: {skill.category}\n"
+                       f"This skill internally uses: {', '.join(skill.required_tools)}",
+            parameters=skill.parameters,
+            func=create_wrapper(skill)
+        )

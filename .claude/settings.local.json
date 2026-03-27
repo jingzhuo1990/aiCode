@@ -40,7 +40,8 @@
       "Bash(cat > /Users/jingzhuo/PycharmProjects/aiCode/setup_rag.sh << 'EOF'\n#!/bin/bash\n# RAG 记忆系统快速安装脚本\n\necho \"🧠 RAG 记忆系统安装\"\necho \"=\" \necho \"\"\n\n# 检查虚拟环境\nif [ -d \".venv\" ]; then\n    echo \"✓ 找到虚拟环境\"\n    source .venv/bin/activate\nelse\n    echo \"⚠️  未找到虚拟环境，使用系统 Python\"\nfi\n\n# 安装依赖\necho \"\"\necho \"📦 安装依赖...\"\npip install faiss-cpu sentence-transformers\n\n# 更新 requirements.txt\necho \"\"\necho \"📝 更新 requirements.txt...\"\nif ! grep -q \"faiss-cpu\" requirements.txt; then\n    echo \"faiss-cpu>=1.7.4\" >> requirements.txt\nfi\nif ! grep -q \"sentence-transformers\" requirements.txt; then\n    echo \"sentence-transformers>=2.2.0\" >> requirements.txt\nfi\n\n# 运行测试\necho \"\"\necho \"🧪 运行测试...\"\npython test_rag.py\n\necho \"\"\necho \"=\" \necho \"✅ 安装完成！\"\necho \"=\"\necho \"\"\necho \"快速使用:\"\necho \"  python -m aicode.cli_agent remember 'key' 'value' --use-rag\"\necho \"  python -m aicode.cli_agent semantic-search '查询'\"\necho \"\"\nEOF\nchmod +x /Users/jingzhuo/PycharmProjects/aiCode/setup_rag.sh\ncat /Users/jingzhuo/PycharmProjects/aiCode/setup_rag.sh)",
       "Bash(python -m aicode.cli_agent skill-list)",
       "Bash(python3 -c \"\nwith open\\('/Users/jingzhuo/PycharmProjects/aiCode/aicode/skills/file_skills.py', 'r'\\) as f:\n    lines = f.readlines\\(\\)\n    print\\(repr\\(lines[53]\\)\\)\n\")",
-      "Bash(python test_skills.py)"
+      "Bash(python test_skills.py)",
+      "Bash(python test_integration.py)"
     ]
   }
 }
