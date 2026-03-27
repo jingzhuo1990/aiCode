@@ -14,6 +14,8 @@ from .models.openai import OpenAIModel
 from .models.qwen import QwenModel
 from .models.local import LocalModel
 from .architectures.unified_agent import UnifiedAgent
+from .skills import create_default_skills, SkillExecutionContext
+from .architectures.tools_enhanced import create_enhanced_tools
 
 console = Console()
 
@@ -266,6 +268,119 @@ def list_tools(memory_dir):
             console.print(f"[green]•[/green] [bold]{tool_name}[/bold]")
             console.print(f"  {tool_info['description']}")
             console.print()
+
+
+@agent_cli.command(name="skill-list")
+@click.option("--category", help="按分类过滤技能")
+def list_skills(category):
+    """列出所有可用的技能"""
+    skill_registry = create_default_skills()
+    skills = skill_registry.list_skills(category=category)
+
+    if not skills:
+        console.print("[yellow]No skills found[/yellow]")
+        return
+
+    console.print(f"\n[bold cyan]Available Skills[/bold cyan] ({len(skills)})\n")
+
+    # 按分类分组
+    by_category = {}
+    for skill in skills:
+        if skill.category not in by_category:
+            by_category[skill.category] = []
+        by_category[skill.category].append(skill)
+
+    # 显示技能
+    for cat, cat_skills in sorted(by_category.items()):
+        console.print(f"[bold yellow]{cat.upper()}[/bold yellow]")
+        for skill in cat_skills:
+            console.print(f"  [green]•[/green] [bold]{skill.name}[/bold]")
+            console.print(f"    {skill.description}")
+            console.print(f"    [dim]Required tools: {', '.join(skill.required_tools)}[/dim]")
+            console.print()
+
+
+@agent_cli.command(name="skill-run")
+@click.argument("skill_name")
+@click.option("--param", "-p", multiple=True, help="技能参数 (key=value)")
+@click.option("--working-dir", default=".", help="工作目录")
+def run_skill(skill_name, param, working_dir):
+    """执行指定的技能"""
+    async def execute():
+        # 创建技能注册表和工具
+        skill_registry = create_default_skills()
+        tool_registry = create_enhanced_tools()
+
+        # 解析参数
+        params = {}
+        for p in param:
+            if "=" in p:
+                key, value = p.split("=", 1)
+                params[key] = value
+
+        # 创建执行上下文
+        context = SkillExecutionContext(
+            tools={tool.name: tool.func for tool in tool_registry.tools.values()},
+            working_dir=working_dir
+        )
+
+        console.print(f"\n[cyan]Executing skill:[/cyan] {skill_name}")
+        console.print(f"[cyan]Parameters:[/cyan] {params}\n")
+
+        # 执行技能
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+        ) as progress:
+            task = progress.add_task(f"Running {skill_name}...", total=None)
+
+            result = await skill_registry.execute_skill(
+                skill_name, context, **params
+            )
+
+            progress.stop()
+
+        # 显示结果
+        if result["success"]:
+            console.print("[green]✓ Skill executed successfully![/green]\n")
+        else:
+            console.print("[red]✗ Skill execution failed[/red]\n")
+
+        console.print(f"[bold]Message:[/bold] {result['message']}\n")
+
+        if result["steps"]:
+            console.print("[bold]Execution Steps:[/bold]")
+            for step in result["steps"]:
+                console.print(f"  • {step}")
+            console.print()
+
+        if result["data"]:
+            console.print("[bold]Result Data:[/bold]")
+            import json
+            console.print(json.dumps(result["data"], indent=2))
+
+    asyncio.run(execute())
+
+
+@agent_cli.command(name="skill-stats")
+def skill_stats():
+    """显示技能使用统计"""
+    skill_registry = create_default_skills()
+    stats = skill_registry.get_all_stats()
+
+    console.print(f"\n[bold cyan]Skill Statistics[/bold cyan]\n")
+    console.print(f"Total skills: {stats['total_skills']}")
+    console.print(f"Categories: {', '.join(stats['categories'])}\n")
+
+    console.print("[bold]Individual Skill Stats:[/bold]\n")
+    for skill_stat in stats['skills']:
+        console.print(f"[bold]{skill_stat['name']}[/bold] ({skill_stat['category']})")
+        console.print(f"  Executions: {skill_stat['execution_count']}")
+        console.print(f"  Success rate: {skill_stat['success_rate']:.1%}")
+        if skill_stat['last_executed_at']:
+            console.print(f"  Last run: {skill_stat['last_executed_at']}")
+        console.print()
 
 
 if __name__ == "__main__":
