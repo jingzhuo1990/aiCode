@@ -41,7 +41,9 @@
       "Bash(python -m aicode.cli_agent skill-list)",
       "Bash(python3 -c \"\nwith open\\('/Users/jingzhuo/PycharmProjects/aiCode/aicode/skills/file_skills.py', 'r'\\) as f:\n    lines = f.readlines\\(\\)\n    print\\(repr\\(lines[53]\\)\\)\n\")",
       "Bash(python test_skills.py)",
-      "Bash(python test_integration.py)"
+      "Bash(python test_integration.py)",
+      "WebSearch",
+      "Bash(python test_agent_team.py)"
     ]
   }
 }
